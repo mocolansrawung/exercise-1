@@ -24,6 +24,7 @@ type Player struct {
 	Name     string
 	Board    [][]bool
 	Ships    []Ship
+	Score    int // Score to keep track of hits
 	Opponent *Player
 }
 
@@ -39,7 +40,7 @@ func (p *Player) placeShips() {
 		size int
 	}{
 		{"Carrier", 5},
-		{"Battelship", 4},
+		{"Battleship", 4},
 		{"Cruiser", 3},
 		{"Submarine", 3},
 		{"Destroyer", 2},
@@ -50,7 +51,7 @@ func (p *Player) placeShips() {
 		ship.Name = st.name
 		ship.Size = st.size
 		for {
-			orientation := rand.Intn(2)
+			orientation := rand.Intn(2) // 0 for horizontal, 1 for vertical
 			startX := rand.Intn(boardSize)
 			startY := rand.Intn(boardSize)
 			if p.canPlaceShip(startX, startY, orientation, st.size) {
@@ -75,6 +76,7 @@ func (p *Player) canPlaceShip(startX, startY, orientation, size int) bool {
 	if orientation == 1 && startY+size > boardSize {
 		return false
 	}
+
 	for _, ship := range p.Ships {
 		for i := 0; i < size; i++ {
 			var x, y int
@@ -100,17 +102,16 @@ func (p *Player) fireShot(x, y int, opponent *Player) bool {
 		fmt.Println("Invalid coordinates. Try again.")
 		return false
 	}
-
 	if p.Board[x][y] {
-		fmt.Println("You've already fired these coordinates. Try again.")
+		fmt.Println("You've already fired at these coordinates. Try again.")
 		return false
 	}
-
 	p.Board[x][y] = true
 	for _, ship := range opponent.Ships {
 		for _, coord := range ship.Position {
 			if coord.X == x && coord.Y == y {
 				fmt.Println("Hit!")
+				p.Score++ // Increase score on hit
 				return true
 			}
 		}
@@ -143,7 +144,7 @@ func main() {
 		g.Players[i].placeShips()
 	}
 
-	fmt.Println("Welcome to the game: Battleship!")
+	fmt.Println("Welcome to Battleship!")
 
 	currentPlayer := 0
 	opponent := 1 - currentPlayer
@@ -162,6 +163,10 @@ func main() {
 				break
 			}
 		}
-		currentPlayer, opponent = opponent, currentPlayer // switch players for next round
+
+		currentPlayer, opponent = opponent, currentPlayer // Switch players
 	}
+
+	// Display scores at the end
+	fmt.Printf("Final Scores:\n%s: %d\n%s: %d\n", g.Players[0].Name, g.Players[0].Score, g.Players[1].Name, g.Players[1].Score)
 }
