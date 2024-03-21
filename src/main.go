@@ -7,8 +7,7 @@ import (
 )
 
 const (
-	boardSize = 5
-	numShips  = 3
+	boardSize = 10
 )
 
 type Coordinate struct {
@@ -16,41 +15,100 @@ type Coordinate struct {
 }
 
 type Ship struct {
-	Coordinates []Coordinate
+	Name     string
+	Size     int
+	Position []Coordinate
+}
+
+type Player struct {
+	Name     string
+	Board    [][]bool
+	Ships    []Ship
+	Opponent *Player
 }
 
 type Game struct {
-	Board [boardSize][boardSize]bool
-	Ships []Ship
+	Players [2]Player
+	Turn    int // 0 or 1 to indicate which player's turn
 }
 
-func (g *Game) placeShips() {
+func (p *Player) placeShips() {
 	rand.Seed(time.Now().UnixNano())
-	for i := 0; i < numShips; i++ {
+	shipTypes := []struct {
+		name string
+		size int
+	}{
+		{"Carrier", 5},
+		{"Battelship", 4},
+		{"Cruiser", 3},
+		{"Submarine", 3},
+		{"Destroyer", 2},
+	}
+
+	for _, st := range shipTypes {
 		var ship Ship
-		for j := 0; j < 3; j++ {
-			x := rand.Intn(boardSize)
-			y := rand.Intn(boardSize)
-			ship.Coordinates = append(ship.Coordinates, Coordinate{x, y})
+		ship.Name = st.name
+		ship.Size = st.size
+		for {
+			orientation := rand.Intn(2)
+			startX := rand.Intn(boardSize)
+			startY := rand.Intn(boardSize)
+			if p.canPlaceShip(startX, startY, orientation, st.size) {
+				for i := 0; i < st.size; i++ {
+					if orientation == 0 {
+						ship.Position = append(ship.Position, Coordinate{startX + i, startY})
+					} else {
+						ship.Position = append(ship.Position, Coordinate{startX, startY + i})
+					}
+				}
+				break
+			}
 		}
-		g.Ships = append(g.Ships, ship)
+		p.Ships = append(p.Ships, ship)
 	}
 }
 
-func (g *Game) fireShot(x, y int) bool {
+func (p *Player) canPlaceShip(startX, startY, orientation, size int) bool {
+	if orientation == 0 && startX+size > boardSize {
+		return false
+	}
+	if orientation == 1 && startY+size > boardSize {
+		return false
+	}
+	for _, ship := range p.Ships {
+		for i := 0; i < size; i++ {
+			var x, y int
+			if orientation == 0 {
+				x = startX + i
+				y = startY
+			} else {
+				x = startX
+				y = startY + i
+			}
+			for _, pos := range ship.Position {
+				if pos.X == x && pos.Y == y {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func (p *Player) fireShot(x, y int, opponent *Player) bool {
 	if x < 0 || x >= boardSize || y < 0 || y >= boardSize {
 		fmt.Println("Invalid coordinates. Try again.")
 		return false
 	}
 
-	if g.Board[x][y] {
+	if p.Board[x][y] {
 		fmt.Println("You've already fired these coordinates. Try again.")
 		return false
 	}
 
-	g.Board[x][y] = true
-	for _, ship := range g.Ships {
-		for _, coord := range ship.Coordinates {
+	p.Board[x][y] = true
+	for _, ship := range opponent.Ships {
+		for _, coord := range ship.Position {
 			if coord.X == x && coord.Y == y {
 				fmt.Println("Hit!")
 				return true
@@ -61,55 +119,49 @@ func (g *Game) fireShot(x, y int) bool {
 	return false
 }
 
-func (g *Game) printBoard() {
-	fmt.Println("  0 1 2 3 4")
-	for i := 0; i < boardSize; i++ {
-		fmt.Printf("%d ", i)
-		for j := 0; j < boardSize; j++ {
-			if g.Board[i][j] {
-				fmt.Print("X ")
-			} else {
-				fmt.Print("- ")
+func (p *Player) allShipsSunk() bool {
+	for _, ship := range p.Ships {
+		for _, pos := range ship.Position {
+			if !p.Board[pos.X][pos.Y] {
+				return false
 			}
 		}
-		fmt.Println()
 	}
+	return true
 }
 
 func main() {
 	var g Game
-	g.placeShips()
+	g.Players[0].Name = "Player 1"
+	g.Players[1].Name = "Player 2"
 
-	fmt.Println("Welcome to the game: Battelship!")
-	fmt.Println("Try to sink all the ships!")
+	for i := range g.Players {
+		g.Players[i].Board = make([][]bool, boardSize)
+		for j := range g.Players[i].Board {
+			g.Players[i].Board[j] = make([]bool, boardSize)
+		}
+		g.Players[i].placeShips()
+	}
+
+	fmt.Println("Welcome to the game: Battleship!")
+
+	currentPlayer := 0
+	opponent := 1 - currentPlayer
 
 	for {
-		fmt.Println()
-		g.printBoard()
-
+		fmt.Printf("\n%s's turn:\n", g.Players[currentPlayer].Name)
 		var x, y int
 		fmt.Print("Enter X coordinate: ")
 		fmt.Scan(&x)
 		fmt.Print("Enter Y coordinate: ")
 		fmt.Scan(&y)
 
-		if g.fireShot(x, y) {
-			allSunk := true
-			for _, ship := range g.Ships {
-				for _, coord := range ship.Coordinates {
-					if !g.Board[coord.X][coord.Y] {
-						allSunk = false
-						break
-					}
-				}
-				if !allSunk {
-					break
-				}
-			}
-			if allSunk {
-				fmt.Println("Congratulations! You sunk all the ships!")
+		if g.Players[currentPlayer].fireShot(x, y, &g.Players[opponent]) {
+			if g.Players[opponent].allShipsSunk() {
+				fmt.Printf("%s wins!\n", g.Players[currentPlayer].Name)
 				break
 			}
 		}
+		currentPlayer, opponent = opponent, currentPlayer // switch players for next round
 	}
 }
